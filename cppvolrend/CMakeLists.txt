@@ -29,9 +29,9 @@ add_executable(cppvolrend
                
                # Null Bounding Box Grid
                volrendernull.cpp                                               volrendernull.h
-              
+
                # GPU Image Order Ray Casting
-               structured/rc1pass/rc1prenderer.cpp                             structured/rc1pass/rc1prenderer.h
+        structured/rc1pass/rc1prenderer.cpp structured/rc1pass/rc1prenderer.h
 
                # Directional Ambient Occlusion and Cone Shadows Ground Truth
                structured/rc1pcrtgt/crtgtrenderer.cpp                          structured/rc1pcrtgt/crtgtrenderer.h
@@ -52,7 +52,13 @@ add_executable(cppvolrend
                structured/sbtmdos/sbtmdosrenderer.cpp                          structured/sbtmdos/sbtmdosrenderer.h
                structured/sbtmdos/layeredframebufferobject.cpp                 structured/sbtmdos/layeredframebufferobject.h
 
-               utils/preillumination.cpp                                       utils/preillumination.h
+                #
+                structured/rc1shadowmap/rc1prenderershadowmap.cpp              structured/rc1shadowmap/rc1prenderershadowmap.h
+
+
+                # Directional Occlusion Shading for GPU Slice/Texture-based
+
+        utils/preillumination.cpp                                       utils/preillumination.h
 
                ${CMAKE_EXTERNAL_DIRECTORY}/imgui/imconfig.h                    ${CMAKE_EXTERNAL_DIRECTORY}/imgui/imgui_demo.cpp
                ${CMAKE_EXTERNAL_DIRECTORY}/imgui/imgui.h                       ${CMAKE_EXTERNAL_DIRECTORY}/imgui/imgui.cpp

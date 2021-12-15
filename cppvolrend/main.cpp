@@ -31,6 +31,8 @@
 
 #ifdef USING_FREEGLUT
 #include "app_freeglut.h"
+#include "structured/rc1shadowmap/rc1prenderershadowmap.h"
+
 ApplicationFreeGLUT app;
 #else
 #ifdef USING_GLFW
@@ -61,6 +63,7 @@ int main (int argc, char **argv)
   RenderingManager::Instance()->AddVolumeRenderer(new RC1PConeTracingDirOcclusionShading());
   RenderingManager::Instance()->AddVolumeRenderer(new RC1PExtinctionBasedShading());
   RenderingManager::Instance()->AddVolumeRenderer(new RC1PVoxelConeTracingSGPU());
+  RenderingManager::Instance()->AddVolumeRenderer(new RayCasting1PassShadowMap());
   //-----------------------------------------------------------------------------------------------------------------------------------------------------------------
   // Slice based
   RenderingManager::Instance()->AddVolumeRenderer(new SBTMDirectionalOcclusionShading());
