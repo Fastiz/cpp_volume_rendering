@@ -35,6 +35,16 @@ uniform vec3 LightSourcePosition;
 uniform int ApplyOcclusion;
 uniform int ApplyShadow;
 
+uniform mat4 lightSpaceMatrix;
+
+uniform mat4 u_LightView;
+uniform mat4 u_LightProj;
+
+uniform float u_DepthNear;
+uniform float u_DepthFar;
+
+layout (binding = 4) uniform sampler2D ShadowMap;
+
 layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 layout (rgba16f, binding = 0) uniform image2D OutputFrag;
 
@@ -45,7 +55,25 @@ bool RayAABBIntersection (vec3 vert_eye, vec3 vert_dir, vec3 vol_scaled_dim,
                           out Ray r, out float rtnear, out float rtfar);
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-vec3 ShadeBlinnPhong (vec3 Tpos, vec3 clr)
+float GetShadowFromShadowMap(vec3 wld_pos){
+  vec4 v_clip = u_LightProj * u_LightView * vec4(wld_pos, 1.0);
+
+  ivec2 size = imageSize(OutputFrag);
+  vec3 v_clip_norm = v_clip.xyz / v_clip.w;
+  v_clip_norm.z = v_clip.z;
+
+  vec2 w = (v_clip_norm.xz/size + 1) / 2.0;
+
+  float depth = texture(ShadowMap, w).x;
+
+//  return depth;
+
+  if( depth * (u_DepthFar - u_DepthNear) + u_DepthNear < v_clip_norm.z ) return .5;
+
+  return 0.0;
+}
+
+vec3 ShadeBlinnPhong (vec3 Tpos, vec3 clr, vec3 wld_pos)
 {
   // Gradient normal
   vec3 gradient_normal =  texture(TexVolumeGradient, Tpos / VolumeGridSize).xyz;
@@ -68,10 +96,13 @@ vec3 ShadeBlinnPhong (vec3 Tpos, vec3 clr)
     //float dot_spec = dot(halfway_vector, gradient_normal);
     //if (dot_spec < 0) dot_spec = dot(halfway_vector, -gradient_normal);
     float dot_spec = max(0, dot(halfway_vector, gradient_normal));
+
+    // Query the shadow map to find the shadow value for the fragment
+    float shadow = GetShadowFromShadowMap(wld_pos);
    
     clr = 
       // rgb only affects ambient + diffuse
-      (clr * (BlinnPhongKa + BlinnPhongKd * dot_diff)) 
+      (clr * (BlinnPhongKa + (1.0 - shadow) * BlinnPhongKd * dot_diff))
       // specular contribution has it's own color
       + BlinnPhongIspecular * BlinnPhongKs * pow(dot_spec, BlinnPhongShininess)
     ;
@@ -137,7 +168,9 @@ void main ()
         {
           // Apply gradient, if enabled
           if(ApplyGradientPhongShading == 1)
-            src.rgb = ShadeBlinnPhong(s_tex_pos, src.rgb);
+            src.rgb = ShadeBlinnPhong(s_tex_pos, src.rgb, wld_pos);
+
+          src.rgb = vec3(GetShadowFromShadowMap(s_tex_pos));
 
           // Evaluate the current opacity
           src.a = 1.0 - exp(-src.a * h);
@@ -145,6 +178,7 @@ void main ()
           // Front-to-back composition
           src.rgb = src.rgb * src.a;
           dst = dst + (1.0 - dst.a) * src;
+
           
           // Opacity threshold: 99%
           if (dst.a > 0.99) break;
@@ -152,6 +186,7 @@ void main ()
         // Go to the next interval
         s = s + h;
       }
+
       imageStore(OutputFrag, storePos, dst);
     }
   }

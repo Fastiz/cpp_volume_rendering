@@ -71,7 +71,9 @@ private:
   gl::ComputeShader*  cp_shader_shadow_map;
   gl::Texture2D* m_shadow_map_texture;
 
-  float m_u_step_size;
+    gl::ComputeShader*  cp_texture_drawer;
+
+    float m_u_step_size;
 
   bool m_apply_gradient_shading;
   

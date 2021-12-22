@@ -1,0 +1,18 @@
+#version 430
+
+layout (binding = 4) uniform sampler2D InTexture;
+layout (rgba16f, binding = 0) uniform image2D OutTexture;
+
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+void main ()
+{
+    ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
+    vec2 readPos = vec2(gl_GlobalInvocationID.xy) / imageSize(OutTexture);
+
+    vec4 value = texture(InTexture, readPos);
+
+//    value = vec4(0.0, 1.0, 0.0, 1.0);
+
+    imageStore(OutTexture, storePos, value);
+}

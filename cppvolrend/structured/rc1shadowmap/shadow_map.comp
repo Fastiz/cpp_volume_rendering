@@ -14,8 +14,11 @@ uniform float u_CameraAspectRatio;
 
 uniform float StepSize;
 
+uniform float u_DepthNear;
+uniform float u_DepthFar;
+
 layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
-layout (rgba16f, binding = 0) uniform image2D OutputFrag;
+layout (rgba16f, binding = 4) uniform image2D OutputFrag;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // From _structured_volume_data/ray_bbox_intersection.frag
@@ -51,7 +54,7 @@ void main ()
       float D = abs(tfar - tnear);
 
       // Initialize Transparency and Radiance color
-      vec4 dst = vec4(0.0);
+      vec4 dst = vec4(1.0);
 
       // World position at tnear, translated to the volume [0, VolumeGridSize]
       vec3 wld_pos = r.Origin + r.Dir * tnear;
@@ -79,12 +82,14 @@ void main ()
         // if sample is non-transparent
         if(src.a > 0.0)
         {
-          dst.r = s + h * 0.5;
+          float x = tnear + s + h * 0.5;
+          dst.rgb = vec3( (x - u_DepthNear) / (u_DepthFar - u_DepthNear) );
           break;
         }
         // Go to the next interval
         s = s + h;
       }
+
       imageStore(OutputFrag, storePos, dst);
     }
   }

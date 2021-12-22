@@ -15,9 +15,11 @@
 #include "imgui_impl_glut.h"
 #include "imgui_impl_opengl2.h"
 
+#define DEBUG 0
+
 RayCasting1PassShadowMap::RayCasting1PassShadowMap()
         : m_glsl_transfer_function(nullptr), cp_shader_rendering(nullptr), m_u_step_size(0.5f),
-          m_apply_gradient_shading(false) {
+          m_apply_gradient_shading(false), cp_shader_shadow_map(nullptr) {
 #ifdef MULTISAMPLE_AVAILABLE
     vr_pixel_multiscaling_support = true;
 #endif
@@ -30,6 +32,7 @@ RayCasting1PassShadowMap::~RayCasting1PassShadowMap() {
 void RayCasting1PassShadowMap::Clean() {
     if (m_glsl_transfer_function) delete m_glsl_transfer_function;
     m_glsl_transfer_function = nullptr;
+    delete m_shadow_map_texture;
 
     DestroyRenderingPass();
 
@@ -38,6 +41,7 @@ void RayCasting1PassShadowMap::Clean() {
 
 void RayCasting1PassShadowMap::ReloadShaders() {
     cp_shader_rendering->Reload();
+    cp_shader_shadow_map->Reload();
     m_rdr_frame_to_screen.ClearShaders();
 }
 
@@ -46,6 +50,11 @@ bool RayCasting1PassShadowMap::Init(int swidth, int sheight) {
 
     if (m_ext_data_manager->GetCurrentVolumeTexture() == nullptr) return false;
     m_glsl_transfer_function = m_ext_data_manager->GetCurrentTransferFunction()->GenerateTexture_1D_RGBt();
+
+    m_shadow_map_texture = new gl::Texture2D(swidth, sheight);
+    m_shadow_map_texture->GenerateTexture(GL_LINEAR, GL_LINEAR, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE);
+    m_shadow_map_texture->SetData(NULL, GL_RGBA16F, GL_RGBA, GL_FLOAT);
+
 
     // Create Rendering Buffers and Shaders
     CreateRenderingPass();
@@ -63,6 +72,27 @@ bool RayCasting1PassShadowMap::Init(int swidth, int sheight) {
 }
 
 bool RayCasting1PassShadowMap::Update(vis::Camera *camera) {
+
+    const glm::vec3 &light_position = m_ext_rendering_parameters->GetBlinnPhongLightingPosition();
+
+    glm::mat4 light_view = glm::lookAt(
+            light_position,
+            light_position + m_ext_rendering_parameters->GetBlinnPhongLightSourceCameraForward(),
+            glm::vec3(0.0f, 1.0f, 0.0f)
+    );
+
+    const int shadowMapHeight = m_rdr_frame_to_screen.GetHeight();
+    const int shadowMapWidth = m_rdr_frame_to_screen.GetWidth();
+
+    const float depthNear = 0.1f;
+    const float depthFar = 1000.0f;
+
+    glm::mat4 light_proj = glm::perspective(
+            (float) tan(DEGREE_TO_RADIANS(camera->GetFovY()) / 2.0),
+            camera->GetAspectRatio(),
+            depthNear,
+            depthFar
+    );
 
     // RENDERING SHADER ------------------------------------------------------------------------------------------------
     {
@@ -101,10 +131,7 @@ bool RayCasting1PassShadowMap::Update(vis::Camera *camera) {
         cp_shader_rendering->SetUniform("ApplyShadow", 1);
         cp_shader_rendering->BindUniform("ApplyShadow");
 
-        cp_shader_rendering->SetUniform("ApplyGradientPhongShading",
-                                        (m_apply_gradient_shading && m_ext_data_manager->GetCurrentGradientTexture())
-                                        ? 1
-                                        : 0);
+        cp_shader_rendering->SetUniform("ApplyGradientPhongShading", 1);
         cp_shader_rendering->BindUniform("ApplyGradientPhongShading");
 
         cp_shader_rendering->SetUniform("BlinnPhongKa", m_ext_rendering_parameters->GetBlinnPhongKambient());
@@ -126,6 +153,12 @@ bool RayCasting1PassShadowMap::Update(vis::Camera *camera) {
                                         m_ext_rendering_parameters->GetBlinnPhongLightingPosition());
         cp_shader_rendering->BindUniform("LightSourcePosition");
 
+        cp_shader_rendering->SetUniform("u_LightView", light_view);
+        cp_shader_rendering->BindUniform("u_LightView");
+
+        cp_shader_rendering->SetUniform("u_LightProj", light_proj);
+        cp_shader_rendering->BindUniform("u_LightProj");
+
         cp_shader_rendering->BindUniforms();
 
         gl::Shader::Unbind();
@@ -145,18 +178,8 @@ bool RayCasting1PassShadowMap::Update(vis::Camera *camera) {
                                                          m_ext_rendering_parameters->GetScreenHeight(), 0);
         }
 
-        cp_shader_shadow_map->SetUniform("CameraEye", m_ext_rendering_parameters->GetBlinnPhongLightingPosition());
+        cp_shader_shadow_map->SetUniform("CameraEye", light_position);
         cp_shader_shadow_map->BindUniform("CameraEye");
-
-        cp_shader_shadow_map->SetUniform(
-                "u_CameraLookAt",
-                glm::lookAt(
-                        m_ext_rendering_parameters->GetBlinnPhongLightingPosition(),
-                        m_ext_rendering_parameters->GetBlinnPhongLightingPosition() + m_ext_rendering_parameters->GetBlinnPhongLightSourceCameraForward(),
-                        m_ext_rendering_parameters->GetBlinnPhongLightSourceCameraUp()
-                        )
-                );
-        cp_shader_shadow_map->BindUniform("u_CameraLookAt");
 
         cp_shader_shadow_map->SetUniform("u_TanCameraFovY", (float) tan(DEGREE_TO_RADIANS(camera->GetFovY()) / 2.0));
         cp_shader_shadow_map->BindUniform("u_TanCameraFovY");
@@ -167,26 +190,71 @@ bool RayCasting1PassShadowMap::Update(vis::Camera *camera) {
         cp_shader_shadow_map->SetUniform("StepSize", m_u_step_size);
         cp_shader_shadow_map->BindUniform("StepSize");
 
+        cp_shader_shadow_map->SetUniform("u_CameraLookAt", light_view);
+        cp_shader_shadow_map->BindUniform("u_CameraLookAt");
+
         cp_shader_shadow_map->BindUniforms();
 
         gl::Shader::Unbind();
     }
     // -----------------------------------------------------------------------------------------------------------------
 
+    // DEBUG SHADER
+    {
+        cp_texture_drawer->Bind();
+        cp_texture_drawer->RecomputeNumberOfGroups(m_rdr_frame_to_screen.GetWidth(),
+                                                   m_rdr_frame_to_screen.GetHeight(), 0);
+        gl::Shader::Unbind();
+
+    }
+
     gl::ExitOnGLError("RayCasting1PassShadowMap: After Update.");
     return true;
 }
 
 void RayCasting1PassShadowMap::Redraw() {
-    m_rdr_frame_to_screen.ClearTexture();
 
-    cp_shader_rendering->Bind();
-    m_rdr_frame_to_screen.BindImageTexture();
+    // CREATE SHADOW MAP
+    {
+        cp_shader_shadow_map->Bind();
 
-    cp_shader_rendering->Dispatch();
-    gl::ComputeShader::Unbind();
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, m_shadow_map_texture->GetTextureID());
+        glBindImageTexture(4, m_shadow_map_texture->GetTextureID(), 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA16F);
 
-    m_rdr_frame_to_screen.Draw();
+        cp_shader_shadow_map->Dispatch();
+        gl::ComputeShader::Unbind();
+
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    }
+
+#if DEBUG
+    // DEBUG SHADOW MAP
+    {
+        m_rdr_frame_to_screen.ClearTexture();
+        cp_texture_drawer->Bind();
+        m_rdr_frame_to_screen.BindImageTexture();
+
+        cp_texture_drawer->BindUniforms();
+
+        cp_texture_drawer->Dispatch();
+        gl::ComputeShader::Unbind();
+
+        m_rdr_frame_to_screen.Draw();
+    }
+#else
+    // RENDER SCENE
+    {
+        m_rdr_frame_to_screen.ClearTexture();
+        cp_shader_rendering->Bind();
+        m_rdr_frame_to_screen.BindImageTexture();
+
+        cp_shader_rendering->Dispatch();
+        gl::ComputeShader::Unbind();
+
+        m_rdr_frame_to_screen.Draw();
+    }
+#endif
 }
 
 void RayCasting1PassShadowMap::MultiSampleRedraw() {
@@ -264,6 +332,9 @@ void RayCasting1PassShadowMap::CreateRenderingPass() {
 
     glm::vec3 vol_aabb = vol_resolution * vol_voxelsize;
 
+    const float depthNear = 0.1f;
+    const float depthFar = 1000.0f;
+
     // RENDERING SHADER ------------------------------------------------------------------------------------------------
     {
         cp_shader_rendering = new gl::ComputeShader();
@@ -286,11 +357,17 @@ void RayCasting1PassShadowMap::CreateRenderingPass() {
         cp_shader_rendering->SetUniform("VolumeVoxelSize", vol_voxelsize);
         cp_shader_rendering->SetUniform("VolumeGridSize", vol_aabb);
 
+        cp_shader_rendering->SetUniform("u_DepthNear", depthNear);
+        cp_shader_rendering->BindUniform("u_DepthNear");
+
+        cp_shader_rendering->SetUniform("u_DepthFar", depthFar);
+        cp_shader_rendering->BindUniform("u_DepthFar");
+
         cp_shader_rendering->BindUniforms();
         cp_shader_rendering->Unbind();
     }
     // -----------------------------------------------------------------------------------------------------------------
-    
+
     // SHADOW MAP SHADER -----------------------------------------------------------------------------------------------
     {
         cp_shader_shadow_map = new gl::ComputeShader();
@@ -309,8 +386,23 @@ void RayCasting1PassShadowMap::CreateRenderingPass() {
         cp_shader_shadow_map->SetUniform("VolumeVoxelSize", vol_voxelsize);
         cp_shader_shadow_map->SetUniform("VolumeGridSize", vol_aabb);
 
+        cp_shader_shadow_map->SetUniform("u_DepthNear", depthNear);
+        cp_shader_shadow_map->BindUniform("u_DepthNear");
+
+        cp_shader_shadow_map->SetUniform("u_DepthFar", depthFar);
+        cp_shader_shadow_map->BindUniform("u_DepthFar");
+
         cp_shader_shadow_map->BindUniforms();
         cp_shader_shadow_map->Unbind();
+    }
+    // -----------------------------------------------------------------------------------------------------------------
+
+
+    // PRINT TEXTURE DEBUG SHADER --------------------------------------------------------------------------------------
+    {
+        cp_texture_drawer = new gl::ComputeShader();
+        cp_texture_drawer->AddShaderFile(CPPVOLREND_DIR"structured/rc1shadowmap/texture_copy.comp");
+        cp_texture_drawer->LoadAndLink();
     }
     // -----------------------------------------------------------------------------------------------------------------
 }
@@ -320,6 +412,8 @@ void RayCasting1PassShadowMap::DestroyRenderingPass() {
     cp_shader_rendering = nullptr;
     if (cp_shader_shadow_map) delete cp_shader_shadow_map;
     cp_shader_shadow_map = nullptr;
+    if (cp_texture_drawer) delete cp_texture_drawer;
+    cp_texture_drawer = nullptr;
     
     gl::ExitOnGLError("Could not destroy shaders");
 }
