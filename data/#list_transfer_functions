@@ -1,1 +1,14 @@
 <tf1dcp/bonsai_01.tf1d>    <Bonsai TF 1>
+<tf1dcp/bonsai_02.tf1d>	<Bonsai TF 2>
+<tf1dcp/Bonsai.1.256x256x256.linear.tf1d>	<Bonsai TF 3>
+<tf1dcp/BluntFin.1.256x128x64.linear.tf1d>	<BluntFin>
+<tf1dcp/BostonTeapot.1.256x256x178.linear.tf1d>	<BostonTeapot>
+<tf1dcp/Engine.1.256x256x128.linear.tf1d>	<Engine>
+<tf1dcp/engine_01.tf1d>	<engine_01>
+<tf1dcp/isovolume_01.tf1d>	<isovolume_01>
+<tf1dcp/isovolume_02.tf1d>	<isovolume_02>
+<tf1dcp/occ_synthetic_cubes.tf1d>	<occ_synthetic_cubes>
+<tf1dcp/occ_VisMale.tf1d>	<occ_VisMale>
+<tf1dcp/occ_vismalehead.tf1d>	<occ_vismalehead>
+<tf1dcp/sdw_sbars.tf1d>	<sdw_sbars>
+<tf1dcp/sdw_vct.tf1d>	<sdw_vct>

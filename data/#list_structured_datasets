@@ -1,1 +1,10 @@
 <raw/Bonsai.1.256x256x256.raw>       <Structured Bonsai>
+<raw/Aneurism.1.256x256x256.raw>       <Structured Aneurism>
+<raw/Tooth.2.256x256x161.raw>       <Structured Tooth>
+<raw/vismale.1.128x256x256.raw>       <Structured vismale>
+<synthetic/Lcbs.syn>       <Synthetic Lcbs>
+<synthetic/VCT.syn>       <Synthetic VCT>
+<vollib/Backpack.pvm>       <Vollib Backpack>
+<vollib/Engine.pvm>       <Vollib Engine>
+<vollib/Tooth.pvm>       <Vollib Tooth>
+<vollib/VisMale.pvm>       <Vollib VisMale>
