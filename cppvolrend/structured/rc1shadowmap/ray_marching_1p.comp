@@ -58,57 +58,17 @@ bool RayAABBIntersection (vec3 vert_eye, vec3 vert_dir, vec3 vol_scaled_dim,
 float GetShadowFromShadowMap(vec3 wld_pos){
   vec4 v_clip = u_LightProj * u_LightView * vec4(wld_pos, 1.0);
 
-  ivec2 size = imageSize(OutputFrag);
   vec3 v_clip_norm = v_clip.xyz / v_clip.w;
-  v_clip_norm.z = v_clip.z;
 
-  vec2 w = (v_clip_norm.xz/size + 1) / 2.0;
+  vec3 w = (v_clip_norm + 1.0f) / 2.0f;
 
-  float depth = texture(ShadowMap, w).x;
+  float depth = texture(ShadowMap, w.xy).x;
 
-//  return depth;
+  w.z = v_clip.z / u_DepthFar;
 
-  if( depth * (u_DepthFar - u_DepthNear) + u_DepthNear < v_clip_norm.z ) return .5;
+  if( depth - 0.001 < w.z ) return 1.0;
 
   return 0.0;
-}
-
-vec3 ShadeBlinnPhong (vec3 Tpos, vec3 clr, vec3 wld_pos)
-{
-  // Gradient normal
-  vec3 gradient_normal =  texture(TexVolumeGradient, Tpos / VolumeGridSize).xyz;
-  
-  // If is non-zero
-  if(gradient_normal != vec3(0, 0, 0))
-  {
-    vec3 Wpos = Tpos - (VolumeGridSize * 0.5);
-    
-    gradient_normal      = normalize(gradient_normal);
-    
-    vec3 light_direction = normalize(LightSourcePosition - Wpos);
-    vec3 eye_direction   = normalize(CameraEye - Wpos);
-    vec3 halfway_vector  = normalize(eye_direction + light_direction);
-  
-    //float dot_diff = dot(gradient_normal, light_direction);
-    //if (dot_diff < 0) dot_diff = dot(-gradient_normal, light_direction);
-    float dot_diff = max(0, dot(gradient_normal, light_direction));
-
-    //float dot_spec = dot(halfway_vector, gradient_normal);
-    //if (dot_spec < 0) dot_spec = dot(halfway_vector, -gradient_normal);
-    float dot_spec = max(0, dot(halfway_vector, gradient_normal));
-
-    // Query the shadow map to find the shadow value for the fragment
-    float shadow = GetShadowFromShadowMap(wld_pos);
-   
-    clr = 
-      // rgb only affects ambient + diffuse
-      (clr * (BlinnPhongKa + (1.0 - shadow) * BlinnPhongKd * dot_diff))
-      // specular contribution has it's own color
-      + BlinnPhongIspecular * BlinnPhongKs * pow(dot_spec, BlinnPhongShininess)
-    ;
-  }
-
-  return clr;
 }
 
 void main ()
@@ -166,22 +126,43 @@ void main ()
         // if sample is non-transparent
         if(src.a > 0.0)
         {
-          // Apply gradient, if enabled
-          if(ApplyGradientPhongShading == 1)
-            src.rgb = ShadeBlinnPhong(s_tex_pos, src.rgb, wld_pos);
+          vec3 Wpos = wld_pos + r.Dir * (s + h * 0.5);
+          float shadow = GetShadowFromShadowMap(Wpos);
 
-          src.rgb = vec3(GetShadowFromShadowMap(s_tex_pos));
+          dst.rgb = shadow > 0.5 ? vec3(0.2f) : vec3(0.8f);
+/*          dst.rgb = vec3(0.0f);
+          if(shadow > 1.0)
+            dst.b = 1.0;
+          else if(shadow > 0.9)
+            dst.r = 1.0f;
+          else if(shadow < 0.0)
+            dst.g = 1.0f;
+          else
+            dst.rgb = vec3(shadow);*/
 
-          // Evaluate the current opacity
-          src.a = 1.0 - exp(-src.a * h);
-          
-          // Front-to-back composition
-          src.rgb = src.rgb * src.a;
-          dst = dst + (1.0 - dst.a) * src;
+//          dst.rgb = vec3(shadow);
+         /* vec4 v_clip = u_LightProj * u_LightView * vec4(Wpos, 1.0);
+          vec3 v_clip_norm = v_clip.xyz / v_clip.w;
 
-          
-          // Opacity threshold: 99%
-          if (dst.a > 0.99) break;
+          vec3 w = (v_clip_norm.xyz + 1) / 2.0;
+
+          bool flag = false;
+          dst.rgb = vec3(0.0);
+
+          if(w.x > 1.0 || w.x < 0.0){
+            dst.r = 1.0;
+            flag = true;
+          }
+          if(w.y > 1.0 || w.y < 0.0){
+            dst.g = 1.0;
+            flag = true;
+          }
+          if(!flag){
+            dst.b = 1.0f;
+          }*/
+
+          dst.a = 1.0f;
+          break;
         }
         // Go to the next interval
         s = s + h;

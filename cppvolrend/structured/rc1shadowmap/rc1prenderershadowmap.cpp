@@ -20,6 +20,13 @@
 RayCasting1PassShadowMap::RayCasting1PassShadowMap()
         : m_glsl_transfer_function(nullptr), cp_shader_rendering(nullptr), m_u_step_size(0.5f),
           m_apply_gradient_shading(false), cp_shader_shadow_map(nullptr) {
+
+    lightProperties.depthNear = 0.1f;
+    lightProperties.depthFar = 1000.0f;
+    lightProperties.fovY = 45.0f;
+    lightProperties.width = 1024;
+    lightProperties.height = 512;
+
 #ifdef MULTISAMPLE_AVAILABLE
     vr_pixel_multiscaling_support = true;
 #endif
@@ -52,7 +59,8 @@ bool RayCasting1PassShadowMap::Init(int swidth, int sheight) {
     m_glsl_transfer_function = m_ext_data_manager->GetCurrentTransferFunction()->GenerateTexture_1D_RGBt();
 
     m_shadow_map_texture = new gl::Texture2D(swidth, sheight);
-    m_shadow_map_texture->GenerateTexture(GL_LINEAR, GL_LINEAR, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE);
+    m_shadow_map_texture->GenerateTexture(GL_NEAREST, GL_NEAREST, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE);
+//    m_shadow_map_texture->GenerateTexture(GL_LINEAR, GL_LINEAR, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE);
     m_shadow_map_texture->SetData(NULL, GL_RGBA16F, GL_RGBA, GL_FLOAT);
 
 
@@ -81,18 +89,17 @@ bool RayCasting1PassShadowMap::Update(vis::Camera *camera) {
             glm::vec3(0.0f, 1.0f, 0.0f)
     );
 
-    const int shadowMapHeight = m_rdr_frame_to_screen.GetHeight();
-    const int shadowMapWidth = m_rdr_frame_to_screen.GetWidth();
+    lightProperties.width = m_ext_rendering_parameters->GetScreenWidth();
+    lightProperties.height = m_ext_rendering_parameters->GetScreenHeight();
 
-    const float depthNear = 0.1f;
-    const float depthFar = 1000.0f;
-
+    float lightAspect = (float) lightProperties.width / (float) lightProperties.height;
     glm::mat4 light_proj = glm::perspective(
-            (float) tan(DEGREE_TO_RADIANS(camera->GetFovY()) / 2.0),
-            camera->GetAspectRatio(),
-            depthNear,
-            depthFar
+            lightProperties.fovY,
+            lightAspect,
+            lightProperties.depthNear,
+            lightProperties.depthFar
     );
+    
 
     // RENDERING SHADER ------------------------------------------------------------------------------------------------
     {
@@ -169,22 +176,15 @@ bool RayCasting1PassShadowMap::Update(vis::Camera *camera) {
     {
         cp_shader_shadow_map->Bind();
 
-        // MULTISAMPLE
-        if (IsPixelMultiScalingSupported() && GetCurrentMultiScalingMode() > 0) {
-            cp_shader_shadow_map->RecomputeNumberOfGroups(m_rdr_frame_to_screen.GetWidth(),
-                                                         m_rdr_frame_to_screen.GetHeight(), 0);
-        } else {
-            cp_shader_shadow_map->RecomputeNumberOfGroups(m_ext_rendering_parameters->GetScreenWidth(),
-                                                         m_ext_rendering_parameters->GetScreenHeight(), 0);
-        }
+        cp_shader_shadow_map->RecomputeNumberOfGroups(lightProperties.width, lightProperties.height, 0);
 
         cp_shader_shadow_map->SetUniform("CameraEye", light_position);
         cp_shader_shadow_map->BindUniform("CameraEye");
 
-        cp_shader_shadow_map->SetUniform("u_TanCameraFovY", (float) tan(DEGREE_TO_RADIANS(camera->GetFovY()) / 2.0));
+        cp_shader_shadow_map->SetUniform("u_TanCameraFovY", (float) tan(DEGREE_TO_RADIANS(lightProperties.fovY/2.0)));
         cp_shader_shadow_map->BindUniform("u_TanCameraFovY");
 
-        cp_shader_shadow_map->SetUniform("u_CameraAspectRatio", camera->GetAspectRatio());
+        cp_shader_shadow_map->SetUniform("u_CameraAspectRatio", lightAspect);
         cp_shader_shadow_map->BindUniform("u_CameraAspectRatio");
 
         cp_shader_shadow_map->SetUniform("StepSize", m_u_step_size);
@@ -332,9 +332,6 @@ void RayCasting1PassShadowMap::CreateRenderingPass() {
 
     glm::vec3 vol_aabb = vol_resolution * vol_voxelsize;
 
-    const float depthNear = 0.1f;
-    const float depthFar = 1000.0f;
-
     // RENDERING SHADER ------------------------------------------------------------------------------------------------
     {
         cp_shader_rendering = new gl::ComputeShader();
@@ -357,14 +354,14 @@ void RayCasting1PassShadowMap::CreateRenderingPass() {
         cp_shader_rendering->SetUniform("VolumeVoxelSize", vol_voxelsize);
         cp_shader_rendering->SetUniform("VolumeGridSize", vol_aabb);
 
-        cp_shader_rendering->SetUniform("u_DepthNear", depthNear);
+        cp_shader_rendering->SetUniform("u_DepthNear", lightProperties.depthNear);
         cp_shader_rendering->BindUniform("u_DepthNear");
 
-        cp_shader_rendering->SetUniform("u_DepthFar", depthFar);
+        cp_shader_rendering->SetUniform("u_DepthFar", lightProperties.depthFar);
         cp_shader_rendering->BindUniform("u_DepthFar");
 
         cp_shader_rendering->BindUniforms();
-        cp_shader_rendering->Unbind();
+        gl::ComputeShader::Unbind();
     }
     // -----------------------------------------------------------------------------------------------------------------
 
@@ -386,14 +383,14 @@ void RayCasting1PassShadowMap::CreateRenderingPass() {
         cp_shader_shadow_map->SetUniform("VolumeVoxelSize", vol_voxelsize);
         cp_shader_shadow_map->SetUniform("VolumeGridSize", vol_aabb);
 
-        cp_shader_shadow_map->SetUniform("u_DepthNear", depthNear);
+        cp_shader_shadow_map->SetUniform("u_DepthNear", lightProperties.depthNear);
         cp_shader_shadow_map->BindUniform("u_DepthNear");
 
-        cp_shader_shadow_map->SetUniform("u_DepthFar", depthFar);
+        cp_shader_shadow_map->SetUniform("u_DepthFar", lightProperties.depthFar);
         cp_shader_shadow_map->BindUniform("u_DepthFar");
 
         cp_shader_shadow_map->BindUniforms();
-        cp_shader_shadow_map->Unbind();
+        gl::ComputeShader::Unbind();
     }
     // -----------------------------------------------------------------------------------------------------------------
 
@@ -408,11 +405,11 @@ void RayCasting1PassShadowMap::CreateRenderingPass() {
 }
 
 void RayCasting1PassShadowMap::DestroyRenderingPass() {
-    if (cp_shader_rendering) delete cp_shader_rendering;
+    delete cp_shader_rendering;
     cp_shader_rendering = nullptr;
-    if (cp_shader_shadow_map) delete cp_shader_shadow_map;
+    delete cp_shader_shadow_map;
     cp_shader_shadow_map = nullptr;
-    if (cp_texture_drawer) delete cp_texture_drawer;
+    delete cp_texture_drawer;
     cp_texture_drawer = nullptr;
     
     gl::ExitOnGLError("Could not destroy shaders");

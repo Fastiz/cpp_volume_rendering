@@ -29,54 +29,61 @@
 #include "imgui_impl_glut.h"
 #include "imgui_impl_opengl2.h"
 
+typedef struct {
+    int width, height;
+    float depthNear, depthFar;
+    float fovY;
+} LightProperties;
+
 class RayCasting1PassShadowMap : public BaseVolumeRenderer
 {
 public:
-  RayCasting1PassShadowMap ();
-  virtual ~RayCasting1PassShadowMap ();
+    RayCasting1PassShadowMap ();
+    virtual ~RayCasting1PassShadowMap ();
 
-  //////////////////////////////////////////
-  // Virtual base functions
-  virtual const char* GetName () { return "1-Pass - Ray Casting with Shadow Map"; }
-  virtual const char* GetAbbreviationName () { return "s_1rc"; }
+    //////////////////////////////////////////
+    // Virtual base functions
+    virtual const char* GetName () { return "1-Pass - Ray Casting with Shadow Map"; }
+    virtual const char* GetAbbreviationName () { return "s_1rc"; }
 
-  virtual void Clean ();
-  virtual void ReloadShaders ();
+    virtual void Clean ();
+    virtual void ReloadShaders ();
 
-  virtual bool Init (int shader_width, int shader_height);
-  virtual bool Update (vis::Camera* camera);
-  virtual void Redraw ();
-  virtual void MultiSampleRedraw ();
-  virtual void DownScalingRedraw ();
-  virtual void UpScalingRedraw ();
+    virtual bool Init (int shader_width, int shader_height);
+    virtual bool Update (vis::Camera* camera);
+    virtual void Redraw ();
+    virtual void MultiSampleRedraw ();
+    virtual void DownScalingRedraw ();
+    virtual void UpScalingRedraw ();
 
-  virtual void SetImGuiComponents ();
+    virtual void SetImGuiComponents ();
 
-  virtual vis::GRID_VOLUME_DATA_TYPE GetDataTypeSupport ()
-  {
-    return vis::GRID_VOLUME_DATA_TYPE::STRUCTURED;
-  }
+    virtual vis::GRID_VOLUME_DATA_TYPE GetDataTypeSupport ()
+    {
+        return vis::GRID_VOLUME_DATA_TYPE::STRUCTURED;
+    }
 
 protected:
 
 private:
-  void CreateRenderingPass ();
-  void DestroyRenderingPass ();
-  void RecreateRenderingPass ();
-  
-  gl::Texture1D* m_glsl_transfer_function;
+    void CreateRenderingPass ();
+    void DestroyRenderingPass ();
+    void RecreateRenderingPass ();
 
-  gl::ComputeShader*  cp_shader_rendering;
+    gl::Texture1D* m_glsl_transfer_function;
 
-  gl::ComputeShader*  cp_shader_shadow_map;
-  gl::Texture2D* m_shadow_map_texture;
+    gl::ComputeShader*  cp_shader_rendering;
+
+    gl::ComputeShader*  cp_shader_shadow_map;
+    gl::Texture2D* m_shadow_map_texture;
 
     gl::ComputeShader*  cp_texture_drawer;
 
     float m_u_step_size;
 
-  bool m_apply_gradient_shading;
-  
+    bool m_apply_gradient_shading;
+
+    LightProperties lightProperties;
 };
 
 #endif
