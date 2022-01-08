@@ -43,6 +43,8 @@ uniform mat4 u_LightProj;
 uniform float u_DepthNear;
 uniform float u_DepthFar;
 
+uniform float u_Bias;
+
 layout (binding = 4) uniform sampler2D ShadowMap;
 
 layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
@@ -66,7 +68,7 @@ float GetShadowFromShadowMap(vec3 wld_pos){
 
   w.z = v_clip.z / u_DepthFar;
 
-  if( depth - 0.001 < w.z ) return 1.0;
+  if( depth + u_Bias < w.z ) return 1.0;
 
   return 0.0;
 }
@@ -130,36 +132,6 @@ void main ()
           float shadow = GetShadowFromShadowMap(Wpos);
 
           dst.rgb = shadow > 0.5 ? vec3(0.2f) : vec3(0.8f);
-/*          dst.rgb = vec3(0.0f);
-          if(shadow > 1.0)
-            dst.b = 1.0;
-          else if(shadow > 0.9)
-            dst.r = 1.0f;
-          else if(shadow < 0.0)
-            dst.g = 1.0f;
-          else
-            dst.rgb = vec3(shadow);*/
-
-//          dst.rgb = vec3(shadow);
-         /* vec4 v_clip = u_LightProj * u_LightView * vec4(Wpos, 1.0);
-          vec3 v_clip_norm = v_clip.xyz / v_clip.w;
-
-          vec3 w = (v_clip_norm.xyz + 1) / 2.0;
-
-          bool flag = false;
-          dst.rgb = vec3(0.0);
-
-          if(w.x > 1.0 || w.x < 0.0){
-            dst.r = 1.0;
-            flag = true;
-          }
-          if(w.y > 1.0 || w.y < 0.0){
-            dst.g = 1.0;
-            flag = true;
-          }
-          if(!flag){
-            dst.b = 1.0f;
-          }*/
 
           dst.a = 1.0f;
           break;

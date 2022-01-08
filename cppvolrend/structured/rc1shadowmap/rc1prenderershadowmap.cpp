@@ -18,7 +18,7 @@
 #define DEBUG 0
 
 RayCasting1PassShadowMap::RayCasting1PassShadowMap()
-        : m_glsl_transfer_function(nullptr), cp_shader_rendering(nullptr), m_u_step_size(0.5f),
+        : m_glsl_transfer_function(nullptr), cp_shader_rendering(nullptr), m_u_step_size(0.5f), m_u_bias(0.01),
           m_apply_gradient_shading(false), cp_shader_shadow_map(nullptr) {
 
     lightProperties.depthNear = 0.1f;
@@ -131,6 +131,9 @@ bool RayCasting1PassShadowMap::Update(vis::Camera *camera) {
 
         cp_shader_rendering->SetUniform("StepSize", m_u_step_size);
         cp_shader_rendering->BindUniform("StepSize");
+
+        cp_shader_rendering->SetUniform("u_Bias", m_u_bias);
+        cp_shader_rendering->BindUniform("u_Bias");
 
         cp_shader_rendering->SetUniform("ApplyOcclusion", 1);
         cp_shader_rendering->BindUniform("ApplyOcclusion");
@@ -257,49 +260,14 @@ void RayCasting1PassShadowMap::Redraw() {
 #endif
 }
 
-void RayCasting1PassShadowMap::MultiSampleRedraw() {
-    m_rdr_frame_to_screen.ClearTexture();
-
-    cp_shader_rendering->Bind();
-    m_rdr_frame_to_screen.BindImageTexture();
-
-    cp_shader_rendering->Dispatch();
-    gl::ComputeShader::Unbind();
-
-    m_rdr_frame_to_screen.DrawMultiSampleHigherResolutionMode();
-}
-
-void RayCasting1PassShadowMap::DownScalingRedraw() {
-    m_rdr_frame_to_screen.ClearTexture();
-
-    cp_shader_rendering->Bind();
-    m_rdr_frame_to_screen.BindImageTexture();
-
-    cp_shader_rendering->Dispatch();
-    gl::ComputeShader::Unbind();
-
-    m_rdr_frame_to_screen.DrawHigherResolutionWithDownScale();
-}
-
-void RayCasting1PassShadowMap::UpScalingRedraw() {
-    m_rdr_frame_to_screen.ClearTexture();
-
-    cp_shader_rendering->Bind();
-    m_rdr_frame_to_screen.BindImageTexture();
-
-    cp_shader_rendering->Dispatch();
-    gl::ComputeShader::Unbind();
-
-    m_rdr_frame_to_screen.DrawLowerResolutionWithUpScale();
-}
-
 void RayCasting1PassShadowMap::SetImGuiComponents() {
     ImGui::Separator();
     ImGui::Text("Step Size: ");
     if (ImGui::DragFloat("###RayCasting1PassUIIntegrationStepSize", &m_u_step_size, 0.01f, 0.01f, 100.0f, "%.2f"))
         SetOutdated();
-
-    AddImGuiMultiSampleOptions();
+    ImGui::Text("Bias: ");
+    if (ImGui::DragFloat("###RayCasting1PassUIBias", &m_u_bias, 0.001f, -0.1f, 0.1f, "%.3f"))
+        SetOutdated();
 
     if (m_ext_data_manager->GetCurrentGradientTexture()) {
         ImGui::Separator();

@@ -52,9 +52,6 @@ public:
     virtual bool Init (int shader_width, int shader_height);
     virtual bool Update (vis::Camera* camera);
     virtual void Redraw ();
-    virtual void MultiSampleRedraw ();
-    virtual void DownScalingRedraw ();
-    virtual void UpScalingRedraw ();
 
     virtual void SetImGuiComponents ();
 
@@ -80,6 +77,7 @@ private:
     gl::ComputeShader*  cp_texture_drawer;
 
     float m_u_step_size;
+    float m_u_bias;
 
     bool m_apply_gradient_shading;
 
