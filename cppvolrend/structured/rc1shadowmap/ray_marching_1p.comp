@@ -45,6 +45,9 @@ uniform float u_DepthFar;
 
 uniform float u_Bias;
 
+uniform float Kdiffuse;
+uniform float Kspecular;
+
 layout (binding = 4) uniform sampler2D ShadowMap;
 
 layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
@@ -131,10 +134,17 @@ void main ()
           vec3 Wpos = wld_pos + r.Dir * (s + h * 0.5);
           float shadow = GetShadowFromShadowMap(Wpos);
 
-          dst.rgb = shadow > 0.5 ? vec3(0.2f) : vec3(0.8f);
+          src.rgb = (1.0 / (Kspecular + Kdiffuse)) * src.rgb * (1.0 - shadow) * Kdiffuse;
 
-          dst.a = 1.0f;
-          break;
+          // Evaluate the current opacity
+          src.a = 1.0 - exp(-src.a * h);
+
+          // Front-to-back composition
+          src.rgb = src.rgb * src.a;
+          dst = dst + (1.0 - dst.a) * src;
+
+          // early termination
+          if (dst.a > 0.99) break;
         }
         // Go to the next interval
         s = s + h;

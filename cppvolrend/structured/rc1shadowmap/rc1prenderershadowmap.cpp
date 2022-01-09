@@ -328,6 +328,12 @@ void RayCasting1PassShadowMap::CreateRenderingPass() {
         cp_shader_rendering->SetUniform("u_DepthFar", lightProperties.depthFar);
         cp_shader_rendering->BindUniform("u_DepthFar");
 
+        cp_shader_rendering->SetUniform("Kdiffuse", m_ext_rendering_parameters->GetBlinnPhongKdiffuse());
+        cp_shader_rendering->BindUniform("Kdiffuse");
+
+        cp_shader_rendering->SetUniform("Kspecular", m_ext_rendering_parameters->GetBlinnPhongKspecular());
+        cp_shader_rendering->BindUniform("Kspecular");
+
         cp_shader_rendering->BindUniforms();
         gl::ComputeShader::Unbind();
     }
